@@ -1,0 +1,148 @@
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from qdrant_client import QdrantClient
+
+from src.core.config import get_settings
+from src.core.logger import get_logger
+from src.agent.state import RAGState
+from src.retrieval.dense import dense_search
+from src.retrieval.sparse import sparse_search, build_bm25_index
+from src.retrieval.fusion import reciprocal_rank_fusion
+from src.retrieval.reranker import rerank
+from src.ingestion.chunker import Chunk
+
+logger = get_logger(__name__)
+settings = get_settings()
+
+# --- clients loaded once at module level ---
+
+_qdrant_client: QdrantClient | None = None
+_llm: ChatGoogleGenerativeAI | None = None
+
+
+def get_qdrant() -> QdrantClient:
+    global _qdrant_client
+    if _qdrant_client is None:
+        _qdrant_client = QdrantClient(url=settings.qdrant_url)
+        logger.info("Qdrant client initialized.")
+    return _qdrant_client
+
+
+def get_llm() -> ChatGoogleGenerativeAI:
+    global _llm
+    if _llm is None:
+        _llm = ChatGoogleGenerativeAI(
+            model=settings.gemini_model,
+            google_api_key=settings.gemini_api_key,
+            temperature=0.2,  # low temp = more grounded, less creative
+        )
+        logger.info("Gemini LLM initialized.")
+    return _llm
+
+
+# ── Node 1: Retrieve ────────────────────────────────────────────────
+
+
+def retrieve_node(state: RAGState) -> dict:
+    """
+    Pulls the latest user query, runs hybrid retrieval
+    (dense + sparse → fusion → rerank) and returns
+    the top-k chunks to attach to state.
+    """
+    logger.info(f"[retrieve_node] query: '{state.query}'")
+
+    client = get_qdrant()
+
+    # 1. dense retrieval — Qdrant vector search
+    dense_results = dense_search(state.query, client)
+
+    # 2. sparse retrieval — fetch all stored chunks for BM25
+    #    we scroll Qdrant to get raw texts for BM25 index
+    scroll_result, _ = client.scroll(
+        collection_name=settings.qdrant_collection,
+        limit=1000,
+        with_payload=True,
+    )
+
+    bm25_chunks = [
+        Chunk(
+            chunk_id=point.payload.get("chunk_id", ""),
+            file_name=point.payload.get("file_name", ""),
+            file_type=point.payload.get("file_type", ""),
+            text=point.payload.get("text", ""),
+            chunk_index=point.payload.get("chunk_index", 0),
+            total_chunks=point.payload.get("total_chunks", 0),
+            metadata=point.payload,
+        )
+        for point in scroll_result
+    ]
+
+    bm25_index, bm25_chunks = build_bm25_index(bm25_chunks)
+    sparse_results = sparse_search(state.query, bm25_index, bm25_chunks)
+
+    # 3. fuse both result lists via RRF
+    fused = reciprocal_rank_fusion(dense_results, sparse_results)
+
+    # 4. rerank with cross-encoder
+    reranked = rerank(state.query, fused)
+
+    retrieved = [
+        {"text": c.text, "score": c.score, "metadata": c.metadata}
+        for c in reranked
+    ]
+
+    logger.info(f"[retrieve_node] Retrieved {len(retrieved)} final chunks.")
+    return {"retrieved_chunks": retrieved}
+
+
+# ── Node 2: Generate ────────────────────────────────────────────────
+
+
+def generate_node(state: RAGState) -> dict:
+    """
+    Builds a grounded prompt from retrieved chunks +
+    conversation history, calls Gemini, and returns
+    the response as an AIMessage appended to state.
+    """
+    logger.info("[generate_node] Generating response...")
+
+    llm = get_llm()
+
+    # build context block from retrieved chunks
+    context = "\n\n---\n\n".join(
+        f"[Chunk {i+1}]\n{chunk['text']}"
+        for i, chunk in enumerate(state.retrieved_chunks)
+    )
+
+    # build conversation history string for multi-turn awareness
+    history = ""
+    if len(state.messages) > 1:
+        history_lines = []
+        for msg in state.messages[:-1]:  # exclude current message
+            role = "User" if isinstance(msg, HumanMessage) else "Assistant"
+            history_lines.append(f"{role}: {msg.content}")
+        history = "\n".join(history_lines)
+
+    # final grounded prompt
+    prompt = f"""You are a helpful enterprise assistant. 
+Answer ONLY based on the provided context.
+If the answer is not in the context, say "I don't have enough information to answer that."
+Never make up information.
+
+{f'Conversation so far:{chr(10)}{history}{chr(10)}' if history else ''}
+Context from documents:
+{context}
+
+Current question: {state.query}
+
+Answer:"""
+
+    response = llm.invoke(prompt)
+    answer = response.content
+
+    logger.info("[generate_node] Response generated.")
+
+    return {
+        "response": answer,
+        "messages": [AIMessage(content=answer)],
+    }
