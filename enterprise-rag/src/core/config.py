@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str = "gemini-1.5-pro"
 
+    groq_api_key: str
+    groq_model: str = "llama-3.1-8b-instant"
+
     # Qdrant
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "enterprise_rag"
@@ -25,6 +28,9 @@ class Settings(BaseSettings):
     # Chunking
     chunk_size: int = 512
     chunk_overlap: int = 64
+
+    # Sparse index
+    bm25_index_path: str = "data/bm25_index.pkl"   # ← new field
 
     # Retrieval
     dense_top_k: int = 20

@@ -1,7 +1,7 @@
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from qdrant_client import QdrantClient
-
+from langchain_groq import ChatGroq
 from src.core.config import get_settings
 from src.core.logger import get_logger
 from src.agent.state import RAGState
@@ -27,16 +27,15 @@ def get_qdrant() -> QdrantClient:
         logger.info("Qdrant client initialized.")
     return _qdrant_client
 
-
-def get_llm() -> ChatGoogleGenerativeAI:
+def get_llm() -> ChatGroq:
     global _llm
     if _llm is None:
-        _llm = ChatGoogleGenerativeAI(
-            model=settings.gemini_model,
-            google_api_key=settings.gemini_api_key,
-            temperature=0.2,  # low temp = more grounded, less creative
+        _llm = ChatGroq(
+            model=settings.groq_model,
+            api_key=settings.groq_api_key,
+            temperature=0.2,
         )
-        logger.info("Gemini LLM initialized.")
+        logger.info("Groq LLM initialized.")
     return _llm
 
 
@@ -58,11 +57,14 @@ def retrieve_node(state: RAGState) -> dict:
 
     # 2. sparse retrieval — fetch all stored chunks for BM25
     #    we scroll Qdrant to get raw texts for BM25 index
-    scroll_result, _ = client.scroll(
+    scroll_response = client.scroll(
         collection_name=settings.qdrant_collection,
         limit=1000,
         with_payload=True,
     )
+
+    # scroll returns a tuple (points, next_page_offset)
+    scroll_result = scroll_response[0]
 
     bm25_chunks = [
         Chunk(

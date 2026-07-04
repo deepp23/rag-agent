@@ -1,13 +1,15 @@
 from dataclasses import dataclass
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, SearchRequest
 from src.core.config import get_settings
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()
 
-genai.configure(api_key=settings.gemini_api_key)
+client_genai = genai.Client(api_key=settings.gemini_api_key)
 
 
 @dataclass
@@ -19,12 +21,14 @@ class RetrievedChunk:
 
 
 def embed_query(query: str) -> list[float]:
-    result = genai.embed_content(
+    result = client_genai.models.embed_content(
         model=settings.embedding_model,
-        content=query,
-        task_type="retrieval_query",
+        contents=query,
+        config=types.EmbedContentConfig(
+            task_type="retrieval_query",
+        ),
     )
-    return result["embedding"]
+    return result.embeddings[0].values
 
 
 def dense_search(query: str, client: QdrantClient) -> list[RetrievedChunk]:
@@ -32,12 +36,12 @@ def dense_search(query: str, client: QdrantClient) -> list[RetrievedChunk]:
 
     query_vector = embed_query(query)
 
-    results = client.search(
+    results = client.query_points(
         collection_name=settings.qdrant_collection,
-        query_vector=query_vector,
+        query=query_vector,
         limit=settings.dense_top_k,
         with_payload=True,
-    )
+    ).points
 
     chunks = [
         RetrievedChunk(
