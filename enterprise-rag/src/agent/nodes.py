@@ -126,18 +126,71 @@ def generate_node(state: RAGState) -> dict:
         history = "\n".join(history_lines)
 
     # final grounded prompt
-    prompt = f"""You are a helpful enterprise assistant. 
-Answer ONLY based on the provided context.
-If the answer is not in the context, say "I don't have enough information to answer that."
-Never make up information.
+    prompt = f"""
+    You are a professional enterprise assistant.
 
-{f'Conversation so far:{chr(10)}{history}{chr(10)}' if history else ''}
-Context from documents:
-{context}
+    Answer the user's question using:
+    1. The conversation history, when the answer was provided by the user earlier in the conversation.
+    2. The document context, for questions about uploaded documents.
 
-Current question: {state.query}
+    STRICT RULES:
 
-Answer:"""
+    1. First determine whether the question can be answered from the conversation history.
+
+    2. If the user previously provided the answer in the conversation, answer using that information directly.
+
+    3. For questions about company policies, procedures, rules, documents, or other uploaded content, answer only with information explicitly supported by the document context.
+
+    4. Start directly with the answer.
+
+    5. Never use introductory phrases such as:
+       - "Based on the provided context"
+       - "According to the documents"
+       - "According to the policy"
+       - "The context states"
+       - "The document mentions"
+
+    6. Never mention or expose:
+       - section numbers
+       - section names
+       - chunk numbers
+       - chunk IDs
+       - file names
+       - retrieval scores
+       - metadata
+       - source labels
+
+    7. Do not discuss how the answer was found.
+
+    8. Do not make assumptions or invent missing information.
+
+    9. If the answer is unavailable in both the conversation history and the document context, say exactly:
+       "I don't have enough information to answer that."
+
+    10. For document questions, missing information does not mean permission.
+        If the documents do not say whether something is allowed, do not say it is allowed.
+
+    11. A general rule does not prove a specific case.
+        For example, a general reimbursement limit does not prove that a particular expense is reimbursable.
+
+    12. If the documents contain conflicting policy versions, use only the version explicitly identified as current, active, authoritative, or most recent.
+
+    13. Match the response format to the question:
+        - Give a short direct answer for simple questions.
+        - Use bullets only when they improve clarity.
+        - Do not add unnecessary introductions or conclusions.
+
+    Conversation history:
+    {history if history else "No previous conversation."}
+
+    Document context:
+    {context}
+
+    Current user question:
+    {state.query}
+
+    Answer:
+    """
 
     response = llm.invoke(prompt)
     answer = response.content

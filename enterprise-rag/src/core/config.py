@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "enterprise_rag"
 
-    # Embeddings
-    embedding_model: str = "models/embedding-001"
+    # Embeddings (now local, no API needed)
+    embedding_model: str = "all-MiniLM-L6-v2"   # ← changed
+    embedding_dimension: int = 384              # ← new, explained below
 
     # Reranker
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
     chunk_overlap: int = 64
 
     # Sparse index
-    bm25_index_path: str = "data/bm25_index.pkl"   # ← new field
+    bm25_index_path: str = "data/bm25_index.pkl"
 
     # Retrieval
     dense_top_k: int = 20

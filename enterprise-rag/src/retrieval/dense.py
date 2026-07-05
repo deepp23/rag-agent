@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from google import genai
-from google.genai import types
+from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, SearchRequest
 from src.core.config import get_settings
@@ -9,7 +8,7 @@ from src.core.logger import get_logger
 logger = get_logger(__name__)
 settings = get_settings()
 
-client_genai = genai.Client(api_key=settings.gemini_api_key)
+_embedding_model = SentenceTransformer(settings.embedding_model)
 
 
 @dataclass
@@ -21,14 +20,12 @@ class RetrievedChunk:
 
 
 def embed_query(query: str) -> list[float]:
-    result = client_genai.models.embed_content(
-        model=settings.embedding_model,
-        contents=query,
-        config=types.EmbedContentConfig(
-            task_type="retrieval_query",
-        ),
+    embedding = _embedding_model.encode(
+        query,
+        convert_to_numpy=True,
+        show_progress_bar=False,
     )
-    return result.embeddings[0].values
+    return embedding.tolist()
 
 
 def dense_search(query: str, client: QdrantClient) -> list[RetrievedChunk]:
