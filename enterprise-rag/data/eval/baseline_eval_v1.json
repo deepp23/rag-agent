@@ -1,0 +1,145 @@
+{
+  "dataset_name": "baseline_eval_v1",
+  "test_cases": [
+    {
+      "question": "What should employees use to store company documents according to the policy?",
+      "expected_answer": "approved repositories",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_36"
+      ],
+      "category": "simple_fact",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 36
+      }
+    },
+    {
+      "question": "Which of the following is NOT allowed for storing company documents: personal email, personal cloud drives, or approved repositories?",
+      "expected_answer": "personal email, personal cloud drives",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_36"
+      ],
+      "category": "paraphrased",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 36
+      }
+    },
+    {
+      "question": "What is required for a fully remote arrangement to be approved?",
+      "expected_answer": "Written approval from the business-unit head and People Operations",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_15"
+      ],
+      "category": "simple_fact",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 15
+      }
+    },
+    {
+      "question": "Under what circumstances can the approval for a fully remote arrangement be reviewed?",
+      "expected_answer": "When role, location, performance, security or client requirements change",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_15"
+      ],
+      "category": "boundary_condition",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 15
+      }
+    },
+    {
+      "question": "What is the effective date of the current version of the Document Control section?",
+      "expected_answer": "1 April 2026",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_0"
+      ],
+      "category": "simple_fact",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 0
+      }
+    },
+    {
+      "question": "Which departments are responsible for the ownership of the Document Control section in the current version?",
+      "expected_answer": "People Operations & Governance",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_0"
+      ],
+      "category": "simple_fact",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 0
+      }
+    },
+    {
+      "question": "What must employees do if they have a significant financial interest in a vendor that could be seen as a conflict of interest?",
+      "expected_answer": "disclose it",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_27"
+      ],
+      "category": "simple_fact",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 27
+      }
+    },
+    {
+      "question": "Which of the following is NOT mentioned as a situation that requires disclosure according to the code of conduct?",
+      "expected_answer": "participation in a hiring or purchasing decision involving a distant personal relationship",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_27"
+      ],
+      "category": "paraphrased",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 27
+      }
+    },
+    {
+      "question": "What should managers do if an employee's performance falls below expectations?",
+      "expected_answer": "Managers should provide clear feedback and reasonable support.",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_26"
+      ],
+      "category": "simple_fact",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 26
+      }
+    },
+    {
+      "question": "What actions are prohibited under the company's Code of Conduct?",
+      "expected_answer": "Harassment, discrimination, bullying, threats, and retaliation are prohibited.",
+      "relevant_chunk_ids": [
+        "NexaCore_Enterprise_Company_Policy_Manual.docx__chunk_26"
+      ],
+      "category": "paraphrased",
+      "answerable": true,
+      "source_file": "NexaCore_Enterprise_Company_Policy_Manual.docx",
+      "metadata": {
+        "generation_type": "single_chunk",
+        "source_chunk_index": 26
+      }
+    }
+  ]
+}

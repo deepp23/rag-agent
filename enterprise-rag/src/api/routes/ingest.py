@@ -3,13 +3,16 @@ from pathlib import Path
 
 from fastapi import (
     APIRouter,
+    Depends,
     UploadFile,
     File,
     HTTPException,
 )
 
+from src.auth.dependencies import get_current_workspace
 from src.core.logger import get_logger
 from src.api.models import IngestResponse
+from src.db.models import Workspace
 from src.ingestion.loader import load_document
 from src.ingestion.chunker import chunk_document
 from src.ingestion.indexer import index_chunks
@@ -35,6 +38,7 @@ MAX_FILE_SIZE_MB = 20
 )
 async def ingest_document(
     file: UploadFile = File(...),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     """
     Upload a document.
@@ -157,7 +161,8 @@ async def ingest_document(
         # ====================================================
 
         index_chunks(
-            chunks
+            chunks,
+            workspace_id=str(workspace.id),
         )
 
         logger.info(

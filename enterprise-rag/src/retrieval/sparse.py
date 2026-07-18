@@ -7,16 +7,22 @@ from src.ingestion.chunker import Chunk
 logger = get_logger(__name__)
 settings = get_settings()
 
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "but", "is", "are", "was", "were",
+    "in", "on", "at", "to", "of", "for", "with", "as", "by", "this",
+    "that", "it", "be", "from",
+}
 
-def build_bm25_index(chunks: list[Chunk]) -> tuple[BM25Okapi, list[Chunk]]:
+
+def tokenize(text: str) -> list[str]:
     """
-    Builds a BM25 index from a list of chunks.
-    Returns the index and the original chunks (needed for lookup by rank).
+    Shared tokenizer used both when the corpus-wide BM25 index is built
+    at ingest time and when a query is tokenized at search time — they
+    must match or BM25 scores are meaningless.
     """
-    tokenized = [chunk.text.lower().split() for chunk in chunks]
-    index = BM25Okapi(tokenized)
-    logger.info(f"BM25 index built with {len(chunks)} chunks.")
-    return index, chunks
+    cleaned = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in text)
+    tokens = cleaned.lower().split()
+    return [t for t in tokens if t not in _STOPWORDS]
 
 
 def sparse_search(
@@ -25,12 +31,12 @@ def sparse_search(
     chunks: list[Chunk],
 ) -> list[RetrievedChunk]:
     """
-    Runs BM25 sparse retrieval against the in-memory index.
+    Runs BM25 sparse retrieval against the persisted, corpus-wide index.
     Returns top-k results as RetrievedChunk objects.
     """
     logger.info(f"Sparse search for: '{query}'")
 
-    tokenized_query = query.lower().split()
+    tokenized_query = tokenize(query)
     scores = bm25_index.get_scores(tokenized_query)
 
     # pair each chunk with its BM25 score and sort descending

@@ -1,0 +1,109 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  NAME_PREFIX: ${{ vars.AZURE_NAME_PREFIX || 'ragapp' }}
+  ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Standalone from the Bicep template on purpose: the template always
+      # wants a real, already-pushed image tag (no placeholder image), so
+      # the registry has to exist and be pushed to *before* it runs.
+      # Idempotent — no-ops if the registry already exists.
+      - name: Ensure ACR exists
+        run: |
+          az acr create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$ACR_NAME" \
+            --sku Basic \
+            --admin-enabled false \
+            --only-show-errors \
+            || az acr show --resource-group "$AZURE_RESOURCE_GROUP" --name "$ACR_NAME" -o none
+
+      # Client-side docker build/push rather than `az acr build` — ACR
+      # Tasks (the cloud-side build feature `az acr build` uses) is
+      # blocked on some subscription types ("TasksOperationsNotAllowed"),
+      # including the one this was originally built against. A plain
+      # docker build has no such restriction.
+      - name: Build & push API image
+        run: |
+          set -euo pipefail
+          az acr login --name "$ACR_NAME"
+          docker build -t "$ACR_NAME.azurecr.io/enterprise-rag-api:${{ github.sha }}" .
+          docker push "$ACR_NAME.azurecr.io/enterprise-rag-api:${{ github.sha }}"
+
+      - name: Deploy infrastructure
+        id: infra
+        uses: azure/arm-deploy@v2
+        with:
+          scope: resourcegroup
+          resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
+          deploymentName: enterprise-rag-${{ github.run_number }}
+          template: infra/main.bicep
+          parameters: >
+            namePrefix=${{ env.NAME_PREFIX }}
+            acrName=${{ env.ACR_NAME }}
+            apiImage=${{ env.ACR_NAME }}.azurecr.io/enterprise-rag-api:${{ github.sha }}
+            postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+            jwtSecretKey=${{ secrets.JWT_SECRET_KEY }}
+            geminiApiKey=${{ secrets.GEMINI_API_KEY }}
+            groqApiKey=${{ secrets.GROQ_API_KEY }}
+            hfToken=${{ secrets.HF_TOKEN }}
+          failOnStdErr: false
+
+      - name: Run database migrations
+        run: |
+          set -euo pipefail
+          JOB_NAME="${NAME_PREFIX}-migrate"
+          EXEC_NAME="$(az containerapp job start -g "$AZURE_RESOURCE_GROUP" -n "$JOB_NAME" --query name -o tsv)"
+
+          for i in $(seq 1 30); do
+            STATUS="$(az containerapp job execution list -g "$AZURE_RESOURCE_GROUP" -n "$JOB_NAME" \
+              --query "[?name=='$EXEC_NAME'].properties.status" -o tsv)"
+            echo "migration job status: $STATUS"
+            case "$STATUS" in
+              Succeeded) exit 0 ;;
+              Failed|Stopped) echo "::error::Migration job $STATUS"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Timed out waiting for migration job to finish"
+          exit 1
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          echo "VITE_API_BASE_URL=${{ steps.infra.outputs.apiUrl }}/api/v1" >> .env.production
+          npm run build
+
+      - name: Deploy frontend to Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.infra.outputs.staticWebAppDeploymentToken }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: frontend/dist
+          skip_app_build: true
+          output_location: ''
