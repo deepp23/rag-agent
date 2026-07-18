@@ -1,0 +1,14 @@
+.venv
+.git
+.github
+frontend
+data
+.deepeval
+*.pyc
+__pycache__
+.env
+.env.*
+docker-compose.yml
+alembic.ini.bak
+infra
+*.md

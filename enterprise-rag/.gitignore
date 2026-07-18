@@ -1,4 +1,9 @@
 .venv/
 .env
+.env.production
 __pycache__/
 *.pyc
+infra/.local/
+.deepeval/
+data/bm25/
+data/eval/evaluation_results.csv
