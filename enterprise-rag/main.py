@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import get_settings
 from src.core.logger import get_logger
 from src.api.routes.ingest import router as ingest_router
-from src.api.routes.chat import router as chat_router
+from src.api.routes.conversations import router as conversations_router
+from src.api.routes.auth import router as auth_router
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -29,16 +30,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+if settings.app_env == "development":
+    cors_origins = ["*"]
+else:
+    cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.app_env == "development" else [],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
 app.include_router(ingest_router, prefix="/api/v1", tags=["Ingestion"])
-app.include_router(chat_router, prefix="/api/v1", tags=["Chat"])
+app.include_router(conversations_router, prefix="/api/v1", tags=["Conversations"])
 
 
 @app.get("/health", tags=["Health"])

@@ -1,0 +1,44 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: enterprise_rag
+      POSTGRES_USER: enterprise_rag
+      POSTGRES_PASSWORD: enterprise_rag
+    ports:
+      # Host port 5433, not 5432 — this machine already runs a native
+      # Postgres service on 5432.
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U enterprise_rag"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      qdrant:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # BM25 pickle files are written to the container filesystem at
+      # ingest time — without this mount they're lost on every recreate.
+      - ./data:/app/data
+
+volumes:
+  qdrant_data:
+  pg_data:

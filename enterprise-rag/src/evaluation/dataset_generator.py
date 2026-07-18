@@ -4,8 +4,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from google import genai
-from google.genai import types
-
+from huggingface_hub import InferenceClient
 from src.core.config import get_settings
 from src.core.logger import get_logger
 
@@ -20,20 +19,11 @@ from src.evaluation.models import (
 logger = get_logger(__name__)
 settings = get_settings()
 
-
-client_genai = genai.Client(
-    api_key=settings.gemini_api_key
+client_genai = InferenceClient(
+    api_key=settings.hf_token
 )
 
-
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
-
 DEFAULT_QUESTIONS_PER_CHUNK = 2
-
-
 ALLOWED_CATEGORIES = {
     "simple_fact",
     "paraphrased",
@@ -41,12 +31,6 @@ ALLOWED_CATEGORIES = {
     "conditional",
     "boundary_condition",
 }
-
-
-# ============================================================
-# MAIN FUNCTION
-# ============================================================
-
 
 def generate_evaluation_dataset(
     chunks: list[Chunk],
@@ -57,29 +41,7 @@ def generate_evaluation_dataset(
     ),
     max_chunks: int | None = None,
     random_seed: int = 42,
-) -> EvaluationDataset:
-    """
-    Generate an evaluation dataset automatically
-    from final RAG chunks.
-
-    Flow:
-
-    Final chunks
-        ↓
-    Select useful chunks
-        ↓
-    Send each chunk to Gemini
-        ↓
-    Generate question + expected answer
-        ↓
-    Attach source chunk ID automatically
-        ↓
-    Validate
-        ↓
-    Deduplicate
-        ↓
-    Save JSON
-    """
+    ) -> EvaluationDataset:
 
     logger.info(
         f"Starting evaluation dataset generation "
@@ -305,25 +267,23 @@ SOURCE TEXT:
 {chunk.text}
 """
 
-    response = client_genai.models.generate_content(
-        model=settings.generation_model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            response_mime_type=(
-                "application/json"
-            ),
-        ),
+    response = client_genai.chat.completions.create(
+        model="Qwen/Qwen2.5-7B-Instruct",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.2,
+        response_format={"type": "json_object"},
     )
 
-    if not response.text:
+    content = response.choices[0].message.content
+
+    if not content:
         raise ValueError(
-            "Gemini returned an empty response."
+            "Hugging Face model returned an empty response."
         )
 
-    data = json.loads(
-        response.text
-    )
+    data = json.loads(content)
 
     raw_cases = data.get(
         "test_cases",

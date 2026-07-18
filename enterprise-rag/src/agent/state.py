@@ -32,5 +32,8 @@ class RAGState:
     # which document collection this session is scoped to
     collection: str = "enterprise_rag"
 
-    # session identifier for multi-tenant isolation
-    session_id: str = ""
+    # workspace whose documents retrieval is scoped to (multi-tenant isolation)
+    workspace_id: str = ""
+
+    # the persisted Conversation this turn belongs to
+    conversation_id: str = ""

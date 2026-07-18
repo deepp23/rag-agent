@@ -6,10 +6,10 @@ from src.core.config import get_settings
 from src.core.logger import get_logger
 from src.agent.state import RAGState
 from src.retrieval.dense import dense_search
-from src.retrieval.sparse import sparse_search, build_bm25_index
+from src.retrieval.sparse import sparse_search
 from src.retrieval.fusion import reciprocal_rank_fusion
 from src.retrieval.reranker import rerank
-from src.ingestion.chunker import Chunk
+from src.ingestion.indexer import load_bm25_index, load_bm25_chunks
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -52,35 +52,23 @@ def retrieve_node(state: RAGState) -> dict:
 
     client = get_qdrant()
 
-    # 1. dense retrieval — Qdrant vector search
-    dense_results = dense_search(state.query, client)
+    # 1. dense retrieval — Qdrant vector search, scoped to this workspace
+    dense_results = dense_search(state.query, client, workspace_id=state.workspace_id)
 
-    # 2. sparse retrieval — fetch all stored chunks for BM25
-    #    we scroll Qdrant to get raw texts for BM25 index
-    scroll_response = client.scroll(
-        collection_name=settings.qdrant_collection,
-        limit=1000,
-        with_payload=True,
-    )
-
-    # scroll returns a tuple (points, next_page_offset)
-    scroll_result = scroll_response[0]
-
-    bm25_chunks = [
-        Chunk(
-            chunk_id=point.payload.get("chunk_id", ""),
-            file_name=point.payload.get("file_name", ""),
-            file_type=point.payload.get("file_type", ""),
-            text=point.payload.get("text", ""),
-            chunk_index=point.payload.get("chunk_index", 0),
-            total_chunks=point.payload.get("total_chunks", 0),
-            metadata=point.payload,
+    # 2. sparse retrieval — against this workspace's BM25 index persisted at
+    #    ingest time. Rebuilding this from a Qdrant scroll on every request
+    #    was both slow (full reindex per query) and incomplete (scroll
+    #    capped at 1000 points), so we load the persisted index from disk
+    #    instead.
+    bm25_index = load_bm25_index(state.workspace_id)
+    if bm25_index is not None:
+        bm25_chunks = load_bm25_chunks(state.workspace_id)
+        sparse_results = sparse_search(state.query, bm25_index, bm25_chunks)
+    else:
+        logger.warning(
+            f"No BM25 index found for workspace={state.workspace_id} — skipping sparse search."
         )
-        for point in scroll_result
-    ]
-
-    bm25_index, bm25_chunks = build_bm25_index(bm25_chunks)
-    sparse_results = sparse_search(state.query, bm25_index, bm25_chunks)
+        sparse_results = []
 
     # 3. fuse both result lists via RRF
     fused = reciprocal_rank_fusion(dense_results, sparse_results)

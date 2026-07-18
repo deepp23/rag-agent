@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     chunk_size: int = 512
     chunk_overlap: int = 64
 
-    # Sparse index
-    bm25_index_path: str = "data/bm25_index.pkl"
+    # Sparse index (per-workspace subdirectories live under this root)
+    bm25_dir: str = "data/bm25"
 
     # Retrieval
     dense_top_k: int = 20
@@ -41,6 +41,20 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     log_level: str = "INFO"
+    hf_token: str
+
+    # Comma-separated list of allowed frontend origins in production
+    # (e.g. "https://myapp.azurestaticapps.net"). Ignored in development,
+    # where all origins are allowed.
+    cors_origins: str = ""
+
+    # Database
+    database_url: str
+
+    # Auth
+    jwt_secret_key: str
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 1440
 
 
 @lru_cache

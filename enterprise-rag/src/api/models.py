@@ -1,4 +1,7 @@
-from pydantic import BaseModel, Field
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, Field
 
 
 # ── Ingest ──────────────────────────────────────────────────────────
@@ -9,17 +12,37 @@ class IngestResponse(BaseModel):
     total_chunks: int
 
 
-# ── Chat ────────────────────────────────────────────────────────────
+# ── Auth ────────────────────────────────────────────────────────────
 
-class ChatMessage(BaseModel):
-    role: str = Field(..., pattern="^(user|assistant)$")
-    content: str
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
 
 
-class ChatRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=2000)
-    session_id: str = Field(..., min_length=1)
-    history: list[ChatMessage] = Field(default_factory=list)
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=1)
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    id: UUID
+    email: str
+    workspace_id: UUID
+    created_at: datetime
+
+
+# ── Conversations ───────────────────────────────────────────────────
+
+class ConversationResponse(BaseModel):
+    id: UUID
+    title: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class RetrievedChunkResponse(BaseModel):
@@ -28,7 +51,18 @@ class RetrievedChunkResponse(BaseModel):
     metadata: dict
 
 
+class MessageRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=2000)
+
+
+class MessageResponse(BaseModel):
+    id: UUID
+    role: str
+    content: str
+    created_at: datetime
+
+
 class ChatResponse(BaseModel):
+    conversation_id: UUID
     response: str
-    session_id: str
     retrieved_chunks: list[RetrievedChunkResponse]
